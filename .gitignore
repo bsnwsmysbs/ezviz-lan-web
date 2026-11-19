@@ -1,0 +1,8 @@
+devices.local.json
+recordings/
+.venv/
+__pycache__/
+*.log
+*.ps
+*.mp4
+.env
