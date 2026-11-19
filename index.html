@@ -1,0 +1,101 @@
+﻿<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>钀ょ煶褰曞儚涓嬭浇</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif;color:#1f2937;background:#f3f6fa}body{margin:0}.wrap{max-width:920px;margin:28px auto;padding:0 16px}.card{background:white;border-radius:14px;padding:22px;box-shadow:0 4px 18px #17255412;margin-bottom:16px}h1{margin:0 0 6px;font-size:24px}.hint{color:#64748b;font-size:14px}.row{display:flex;gap:14px;flex-wrap:wrap;align-items:end}.field{display:flex;flex-direction:column;gap:6px;min-width:180px}label{font-size:14px;font-weight:600}select,input[type=date],input[type=password]{padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px}.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:16px 0}.cam{border:1px solid #dbe4ee;border-radius:10px;padding:12px}.cam input{margin-right:8px}button{border:0;border-radius:8px;padding:11px 18px;background:#2563eb;color:white;font-weight:700;cursor:pointer}button:disabled{background:#94a3b8}.bar{height:12px;background:#e2e8f0;border-radius:9px;overflow:hidden;margin:10px 0}.fill{height:100%;background:#22c55e;width:0;transition:width .25s}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stat{background:#f8fafc;border-radius:8px;padding:10px}.stat b{display:block;font-size:18px}.log{background:#0f172a;color:#dbeafe;border-radius:8px;padding:12px;height:190px;overflow:auto;font:12px ui-monospace,monospace;white-space:pre-wrap}.files{margin-top:12px}.files a{display:block;color:#2563eb;text-decoration:none;margin:4px 0}@media(max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}}
+</style></head><body><main class="wrap"><section class="card"><h1>钀ょ煶褰曞儚涓嬭浇</h1><div class="hint">閫夋嫨鍖椾含鏃堕棿鍜屾憚鍍忓ご銆備换鍔℃寜鍔犲叆椤哄簭閫愪釜涓嬭浇銆?/div><div class="row" style="margin-top:16px"><div class="field"><label>寮€濮嬫棩鏈?/label><input id="from" type="date"><select id="fromHour" aria-label="寮€濮嬪皬鏃?></select></div><div class="field"><label>缁撴潫鏃ユ湡</label><input id="to" type="date"><select id="toHour" aria-label="缁撴潫灏忔椂"></select></div><button id="start">鍔犲叆浠诲姟闃熷垪</button></div><div class="checks" id="cameras"></div></section><section class="card"><div class="stats"><div class="stat"><span>鐘舵€?/span><b id="status">鏈紑濮?/b></div><div class="stat"><span>瀹屾垚鐗囨</span><b id="done">0 / 0</b></div><div class="stat"><span>宸蹭笅杞?/span><b id="bytes">0 MB</b></div><div class="stat"><span>鏈€杩戜竴娈甸€熷害</span><b id="speed">0 MB/s</b></div></div><div class="bar"><div class="fill" id="fill"></div></div><div class="log" id="log"></div><div class="files" id="files"></div></section><section class="card"><h2>浠诲姟闃熷垪</h2><ol id="queue" aria-live="polite"></ol></section></main>
+<script>
+const get = id => document.getElementById(id);
+get('from').value = get('to').value = new Intl.DateTimeFormat('sv-SE', {timeZone:'Asia/Shanghai'}).format(new Date());
+for (let hour = 0; hour < 24; hour++) {
+  const value = `${String(hour).padStart(2, '0')}:00`;
+  get('fromHour').add(new Option(value, value));
+  get('toHour').add(new Option(value, value));
+}
+get('fromHour').value = '08:00';
+get('toHour').value = '20:00';
+let submitting = false;
+let shownQueue = '';
+async function refresh() {
+  const response = await fetch('/api/status');
+  if (!response.ok) throw new Error();
+  const job = await response.json();
+  get('start').disabled = submitting;
+  const rows = (job.jobs || []).map(task => {
+    const progress = task.total ? ` 路 宸插鐞?${task.processed}/${task.total} 路 宸蹭繚瀛?${task.done}` : '';
+    const failures = task.failed ? ` 路 澶辫触 ${task.failed} 椤筦 : '';
+    return `${task.cameras.join('銆?)} 路 ${task.start} 鑷?${task.end} 路 ${task.status}${progress}${failures}`;
+  });
+  const queue = JSON.stringify(rows);
+  if (queue !== shownQueue) {
+    shownQueue = queue;
+    get('queue').replaceChildren(...(rows.length ? rows : ['鏆傛棤浠诲姟']).map(text => {
+      const row = document.createElement('li');
+      row.textContent = text;
+      return row;
+    }));
+  }
+  const panel = get('cameras');
+  if (!panel.childElementCount) {
+    for (const [key, name] of Object.entries(job.devices || {})) {
+      const label = document.createElement('label');
+      label.className = 'cam';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.value = key;
+      const code = document.createElement('input');
+      code.type = 'password';
+      code.id = key + 'Code';
+      code.maxLength = 6;
+      code.placeholder = '设备验证码';
+      label.append(check, name, document.createElement('br'), code);
+      panel.append(label);
+    }
+    if (!panel.childElementCount) panel.textContent = '请先创建 devices.local.json 并重启服务';
+  }
+  get('status').textContent = job.status;
+  get('done').textContent = `${job.done} / ${job.total}`;
+  get('bytes').textContent = `${(job.bytes / 1e6).toFixed(1)} MB`;
+  get('speed').textContent = job.speed ? `${job.speed.toFixed(2)} MB/s` : '鈥?;
+  const percent = job.total ? Math.floor(100 * job.processed / job.total) : 0;
+  get('fill').style.width = `${percent}%`;
+  get('files').textContent = `宸插鐞?${percent}% 路 澶辫触 ${job.failed} 椤?路 淇濆瓨鍒?${job.output}锛堟寜璁惧 / 褰曞儚鏃ユ湡鍒嗙洰褰曪級`;
+  const log = get('log');
+  const text = job.newLogs.join('\n');
+  if (log.textContent !== text) {
+    log.textContent = text;
+    log.scrollTop = log.scrollHeight;
+  }
+}
+async function poll() {
+  try { await refresh(); }
+  catch { get('status').textContent = '鏈満鏈嶅姟鏈繛鎺?; }
+  finally { setTimeout(poll, 1000); }
+}
+get('start').onclick = async () => {
+  const cameras = [...document.querySelectorAll('.cam input[type=checkbox]:checked')].map(input => input.value);
+  if (!cameras.length) return alert('璇疯嚦灏戝嬀閫変竴鍙扮浉鏈?);
+  submitting = get('start').disabled = true;
+  try {
+    const payload = {
+      from: `${get('from').value}T${get('fromHour').value}`,
+      to: `${get('to').value}T${get('toHour').value}`,
+      cameras
+    };
+    for (const camera of cameras) payload[camera + 'Code'] = get(camera + 'Code').value;
+    const response = await fetch('/api/start', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) return alert(result.error);
+    for (const camera of cameras) get(camera + 'Code').value = '';
+  } catch { alert('鏃犳硶杩炴帴鏈満涓嬭浇鏈嶅姟'); }
+  finally {
+    submitting = false;
+    get('start').disabled = false;
+    await refresh().catch(() => {});
+  }
+};
+poll();
+</script></body></html>
+
+
