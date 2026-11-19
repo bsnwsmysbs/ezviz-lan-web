@@ -1,0 +1,4 @@
+﻿{
+  "camera-a": {"name": "摄像头 A", "host": "192.0.2.10", "serial": "REPLACE_ME"},
+  "camera-b": {"name": "摄像头 B", "host": "192.0.2.11", "serial": "REPLACE_ME"}
+}
