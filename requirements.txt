@@ -1,0 +1,3 @@
+pyezvizapi==2.5.1
+imageio-ffmpeg
+tzdata
